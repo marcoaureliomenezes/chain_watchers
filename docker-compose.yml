@@ -1,0 +1,94 @@
+version: '2.1'
+services:
+
+
+  mysql:
+    image: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    container_name: mysql
+    restart: always
+    ports:
+      - "33600:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: data_master
+
+    healthcheck:
+      test: ["CMD", 'mysqladmin', 'ping', '-h', 'mysql', '-u', 'root', '-p$$MYSQL_ROOT_PASSWORD' ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+
+  chain_watcher:
+    build: ./
+    restart: always
+    container_name: chain_watcher
+    volumes:
+      - ./src:/app
+
+######################################################
+  # KAFKA SERVICES
+  ######################################################
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "zookeeper", "2181" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-server:7.0.1
+    container_name: kafka
+    restart: always
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+      - 9094:9094
+    volumes:
+      - ./mnt/kafka:/kafka
+
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENERS: INTERNAL://:9092,OUTSIDE://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,OUTSIDE://host.docker.internal:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:9092
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "kafka", "9092" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:6.0.1
+    container_name: kafka-control-center
+    hostname: control-center
+    depends_on:
+      - kafka
+    ports:
+      - "9021:9021"
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: 'kafka:9092'
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      PORT: 9021
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "control-center", "9021" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+
+      
+    

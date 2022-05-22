@@ -1,5 +1,5 @@
 **.sh
 **/build
-src/.env
 src/scripts/__pycache__
 **.csv
+*/.env
