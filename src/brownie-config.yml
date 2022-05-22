@@ -1,0 +1,23 @@
+dependencies:
+  - smartcontractkit/chainlink-brownie-contracts@1.1.1
+compiler:
+  solc:
+    remappings:
+      - '@chainlink=smartcontractkit/chainlink-brownie-contracts@1.1.1'
+dotenv: .env
+networks:
+  default: mainnet
+
+
+  mainnet:
+    verify: False
+
+  ftm-main:
+    verify: False
+
+  bsc-main:
+    verify: False
+
+  avax-main:
+    verify: False
+    
