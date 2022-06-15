@@ -1,7 +1,6 @@
 version: '2.1'
 services:
 
-
   mysql:
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
@@ -12,9 +11,20 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: data_master
-
+    volumes:
+      - /opt/mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", 'mysqladmin', 'ping', '-h', 'mysql', '-u', 'root', '-p$$MYSQL_ROOT_PASSWORD' ]
+      test:
+        [
+          "CMD",
+          'mysqladmin',
+          'ping',
+          '-h',
+          'mysql',
+          '-u',
+          'root',
+          '-p$$MYSQL_ROOT_PASSWORD'
+        ]
       timeout: 45s
       interval: 10s
       retries: 10
@@ -26,7 +36,7 @@ services:
     volumes:
       - ./src:/app
 
-######################################################
+  ######################################################
   # KAFKA SERVICES
   ######################################################
   zookeeper:
@@ -89,6 +99,3 @@ services:
       retries: 10
     extra_hosts:
       - "host.docker.internal:172.17.0.1"
-
-      
-    
