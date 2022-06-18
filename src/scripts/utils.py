@@ -39,5 +39,43 @@ def analyse_rounds(df_round_ids, pricefeed_contract):
     fulfillness = find_missing_rounds(df_round_ids_list)
     max_downgrade = min(df_round_ids_list) - 1
     return upgrade, fulfillness, max_downgrade
- 
 
+
+def divide_array(array, factor):
+    return [list(filter(lambda x: x % factor == i, array)) for i in range(factor)]
+
+    
+#####################################################################################
+
+
+def find_beginning(contract, data_interval, get_data):
+    cond_super_pass = lambda x, x_minus1: x and x_minus1
+    cond_not_pass = lambda x, x_minus1: not x and not x_minus1
+    cond_exact_pass = lambda x, x_minus1: x and not x_minus1
+    middle = int((data_interval['top'][0] + data_interval['bottom'][0]) / 2)
+    
+    data_interval['middle'] = (middle, get_data(contract, middle)[1])
+    data_interval['middle_minus1'] = (middle - 1, get_data(contract, middle - 1)[1])
+    for i in ['top','middle','bottom']:
+        if cond_exact_pass(data_interval[i][1], data_interval[f'{i}_minus1'][1]):
+            return f'SUCCESS {data_interval[i]}'
+    if cond_super_pass(data_interval['middle'][1], data_interval['middle_minus1'][1]):
+        data_interval['top'] = data_interval['middle']
+        data_interval['top_minus1'] = data_interval['middle_minus1']
+
+    if cond_not_pass(data_interval['middle'][1], data_interval['middle_minus1'][1]):
+        data_interval['bottom'] = data_interval['middle']
+        data_interval['bottom_minus1'] = data_interval['middle_minus1']
+
+    print(data_interval['top'], data_interval['bottom'])
+    return find_beginning(contract, data_interval, get_data)
+
+
+def get_latest_round_data(contract):
+    round_id, round_price, _, _, _ = contract.latestRoundData()
+    return round_id, round_price
+
+def get_round_data(contract, round_id):
+    try: round_id, round_price, _, _, _  = contract.getRoundData(round_id)
+    except: return round_id, None
+    return round_id, round_price

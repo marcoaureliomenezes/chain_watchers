@@ -35,6 +35,8 @@ services:
     container_name: chain_watcher
     volumes:
       - ./src:/app
+    environment:
+      WEB3_INFURA_PROJECT_ID: 1f6c5d7a4b6b4b5fa11d285a5ed2f552
 
   ######################################################
   # KAFKA SERVICES

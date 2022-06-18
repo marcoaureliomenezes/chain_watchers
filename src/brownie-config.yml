@@ -1,18 +1,26 @@
 dependencies:
   - smartcontractkit/chainlink-brownie-contracts@1.1.1
+  - aave/protocol-v2@1.0.1
+  - aave/aave-v3-core@1.16.0
 compiler:
   solc:
     remappings:
       - '@chainlink=smartcontractkit/chainlink-brownie-contracts@1.1.1'
+      - '@aave=aave/protocol-v2@1.0.1' 
+      - '@aave_v3=aave/aave-v3-core@1.16.0'  
+
+dotenv: .env
 
 networks:
   default: mainnet
 
 
   mainnet:
+    lending_pool_addresses_provider: '0x88757f2f99175387ab4c6a4b3067c77a695b0349'
     verify: False
 
   ftm-main:
+    
     verify: False
 
   bsc-main:
@@ -21,3 +29,5 @@ networks:
   avax-main:
     verify: False
     
+wallets:
+  from_key: ${PRIVATE_KEY}
