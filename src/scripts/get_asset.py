@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+from email import header
 from brownie import network, interface
 from sqlalchemy import create_engine
 from scripts.utils import table_exists, insert_to_database
@@ -7,19 +8,26 @@ import pandas as pd
 from sqlalchemy.types import VARCHAR
 import time
 
-def compose_row(round_id, asset_attributes, pricefeed_response):
-    return  {
-            'network': asset_attributes['network'],
-            'pair': asset_attributes['description'],
-            'type': asset_attributes["tipo"],
-            'address': asset_attributes["address"], 
-            'price': pricefeed_response[1],
-            'decimals': asset_attributes['decimals'],
-            'round_id': str(round_id),
+def compose_price_row(round_id, pricefeed_response):
+    return  { 
+            'round_id': round_id,
+            'answeredInRound': pricefeed_response[4],
             'started_at': pricefeed_response[2],
             'updated_at': pricefeed_response[3],
-            'answeredInRound': pricefeed_response[4]
+            'price': pricefeed_response[1]
     }
+
+def compose_metadata_row(table_name, asset_attributes):
+    return {
+            'table_name': [table_name],
+            'network': [asset_attributes['network']],
+            'pair': [asset_attributes['pair']],
+            'tipo': [asset_attributes['tipo']],
+            'address': [asset_attributes['address']],
+            'phase_id': [asset_attributes['phaseId']],
+            'decimals': [asset_attributes['decimals']],
+            'description': [asset_attributes['description']]
+        }
 
 def find_holes(interval, rounds):
     df_all = pd.DataFrame([i for i in range(*interval)], columns=['whole'])
@@ -28,18 +36,29 @@ def find_holes(interval, rounds):
     return result.loc[result['real'].isnull()].whole.values
 
 
+def add_metadata(db_engine, asset_attr, table_name):
+    row_metadata = compose_metadata_row(table_name, asset_attr)
+    dataframe = pd.DataFrame(row_metadata)
+    dataframe.to_sql('metadata_table', con=db_engine, if_exists='append', index=False)
+    df = pd.read_sql(f"SELECT * FROM metadata_table", con=db_engine)
+    df = df.drop_duplicates()
+    df.to_sql('metadata_table', con=db_engine, if_exists='replace', index=False)
+    return
+
+
 def fulfill_assets_data(db_engine, aggregator_contract, interval, asset_attr):
     assets_list, counter, pair = ([], 0, asset_attr.get('pair'))
     table_name = f"{pair}_{network.show_active().replace('-', '_')}"
     asset_attr['network'] = network.show_active()
     asset_attr['description'] = aggregator_contract.description()
     asset_attr['decimals'] = aggregator_contract.decimals()
+    add_metadata(db_engine, asset_attr, table_name)
     for round in interval:
         pricefeed_response = aggregator_contract.getRoundData(round)
-        assets_list.append(compose_row(round, asset_attr, pricefeed_response))
+        assets_list.append(compose_price_row(round, pricefeed_response))
+        date, asset_pair = (dt.fromtimestamp(pricefeed_response[2]), asset_attr['description'])
+        print(f"Pair: {asset_pair}, Date: {date}")
         if counter == 100:
-            date, asset_pair = (dt.fromtimestamp(pricefeed_response[2]), asset_attr['description'])
-            print(f"Pair: {asset_pair}, Date: {date}")
             insert_to_database(db_engine, assets_list, table_name)
             assets_list, counter = ([], 0)
         counter += 1
@@ -49,17 +68,21 @@ def fulfill_assets_data(db_engine, aggregator_contract, interval, asset_attr):
 def watch_asset_price(db_engine, asset_attr):
     pair, address = (asset_attr.get('pair'), asset_attr.get('address'))
     pricefeed_contract = interface.AggregatorV3Interface(address)
+    asset_attr['phaseId'] = pricefeed_contract.phaseId()
     aggregator_contract = interface.AggregatorInterface(pricefeed_contract.aggregator())
     expected_interval = (0, aggregator_contract.latestRound())
     table_name = f"{pair}_{network.show_active().replace('-', '_')}"
+    print(f"\n###################### COMPLETING {table_name} ###############################\n")
+
     if table_exists(db_engine, table_name):
         df_round_ids = pd.read_sql(f"SELECT round_id FROM {table_name}", con=db_engine)
         df_round_ids = df_round_ids.astype('int')
         gaps = find_holes(expected_interval, df_round_ids.round_id.values)
-        if len(gaps == 0):
+        if len(gaps) == 0:
             return "Table is Up to Date"
+        print(f'\nUpdating Historical Price of {table_name}!\n')
         fulfill_assets_data(db_engine, aggregator_contract, gaps, asset_attr)
-        return "Table Updated!"
+        return "\nTable Updated!\n"
     else:
         print(expected_interval)
         gaps = [round for round in range(*expected_interval)]
@@ -73,7 +96,4 @@ def main(host, user, password, pair, name, tipo, address):
     engine = create_engine(engine_url)
     if not database_exists(engine.url):
         create_database(engine.url)
-    print("Starting...")
     res = watch_asset_price(engine, asset_metadata)
-    print(res)
-

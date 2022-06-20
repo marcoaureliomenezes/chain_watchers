@@ -29,14 +29,16 @@ services:
       interval: 10s
       retries: 10
 
-  chain_watcher:
+  chainwatcher:
     build: ./
     restart: always
-    container_name: chain_watcher
+    container_name: chain_watcher1
     volumes:
       - ./src:/app
     environment:
       WEB3_INFURA_PROJECT_ID: 1f6c5d7a4b6b4b5fa11d285a5ed2f552
+
+
 
   ######################################################
   # KAFKA SERVICES

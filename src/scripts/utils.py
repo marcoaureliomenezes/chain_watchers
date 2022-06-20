@@ -18,7 +18,7 @@ def get_addresses(assets_metadata):
 
 def insert_to_database(db_engine, assets_list, table_name):
     dataframe = pd.DataFrame(assets_list)
-    dataframe.to_sql(table_name, con=db_engine, if_exists='append', dtype=VARCHAR(256), index=False)
+    dataframe.to_sql(table_name, con=db_engine, if_exists='append', index=False)
 
 def find_missing_rounds(df_round_ids_list):
     minimo, maximo = (min(df_round_ids_list), max(df_round_ids_list))
