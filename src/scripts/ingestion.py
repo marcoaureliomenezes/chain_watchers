@@ -1,47 +1,43 @@
 from brownie import network, interface
 from datetime import datetime as dt
 from scripts.utils import insert_to_database
-import csv
+import csv, logging
 from sqlalchemy import create_engine
 
+logging.basicConfig(level=logging.INFO)
 
-def compose_row(round_id, asset_attributes, pricefeed_response):
-    return  {
-            'network': asset_attributes['network'],
-            'pair': asset_attributes['description'],
-            'type': asset_attributes["tipo"],
-            'address': asset_attributes["address"], 
-            'price': pricefeed_response[1],
-            'decimals': asset_attributes['decimals'],
-            'round_id': str(round_id),
+def compose_price_row(round_id, pricefeed_response):
+    return  { 
+            'round_id': round_id,
+            'answeredInRound': pricefeed_response[4],
             'started_at': pricefeed_response[2],
             'updated_at': pricefeed_response[3],
-            'answeredInRound': pricefeed_response[4]
+            'price': pricefeed_response[1]
     }
+
 
 def fulfill_assets_data(engine_url, interval,asset_attr):
     db_engine = create_engine(engine_url)
     assets_list, counter, pair = ([], 0, asset_attr.get('pair'))
     pricefeed_contract = interface.AggregatorV3Interface(asset_attr['address'])
+    asset_attr['description'] = pricefeed_contract.description()
     aggregator_contract = interface.AggregatorInterface(pricefeed_contract.aggregator())
     table_name = f"{pair}_{network.show_active().replace('-', '_')}"
-    asset_attr['network'] = network.show_active()
-    asset_attr['description'] = aggregator_contract.description()
-    asset_attr['decimals'] = aggregator_contract.decimals()
     for round in interval:
         try:
             pricefeed_response = aggregator_contract.getRoundData(round)
-            assets_list.append(compose_row(round, asset_attr, pricefeed_response))
+            assets_list.append(compose_price_row(round, pricefeed_response))
+            date, asset_pair = (dt.fromtimestamp(pricefeed_response[2]), asset_attr['description'])
+            logging.info(f"Pair: {asset_pair}, Date: {date}")
             if counter == 100:
-                date, asset_pair = (dt.fromtimestamp(pricefeed_response[2]), asset_attr['description'])
-                print(f"Pair: {asset_pair}, Date: {date}")
                 insert_to_database(db_engine, assets_list, table_name)
                 assets_list, counter = ([], 0)
             counter += 1
         except:
-            print("Error hitting the API")
+            logging.info("Error hitting the API")
             continue
     insert_to_database(db_engine, assets_list, table_name)
+    return "SIMPLE PRICEFEED INGESTION DONE!"
 
 
 def read_round_ids(part_round_id, tmp_data_path):
@@ -50,13 +46,7 @@ def read_round_ids(part_round_id, tmp_data_path):
         result = [row for row in csv_reader]
     return [int(i) for i in result[int(part_round_id) - 1] ]
 
-def main(db_string, pair, name, tipo, address, tmp_data_path, part_round_id):
-    asset_attr = {
-        'pair': pair, 
-        'name': name, 
-        'tipo': tipo, 
-        'address': address
-    }
+def main(db_string, pair, address, tmp_data_path, part_round_id):
+    asset_attr = {'pair': pair, 'address': address}
     rounds_interval = read_round_ids(part_round_id, tmp_data_path)
- 
     fulfill_assets_data(db_string, rounds_interval, asset_attr)

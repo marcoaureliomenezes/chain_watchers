@@ -29,15 +29,17 @@ services:
       interval: 10s
       retries: 10
 
-  chainwatcher:
+  dm_chainwatcher1:
     build: ./
     restart: always
-    container_name: chain_watcher1
+    container_name: dm_chainwatcher1
     volumes:
       - ./src:/app
     environment:
       WEB3_INFURA_PROJECT_ID: 1f6c5d7a4b6b4b5fa11d285a5ed2f552
-
+      MYSQL_SERVICE: 'mysql'
+      MYSQL_USER: 'root'
+      MYSQL_PASS: 'root'
 
 
   ######################################################

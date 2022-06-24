@@ -2,3 +2,4 @@
 **/build
 src/scripts/__pycache__
 */.env
+src/scripts/tmp/
